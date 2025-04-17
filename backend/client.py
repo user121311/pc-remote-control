@@ -1,21 +1,9 @@
-import socketio
 import os
 import logging
 import requests
 import time
 
 logging.basicConfig(level=logging.DEBUG)
-
-# Створюємо об'єкт для WebSocket-з'єднання
-sio = socketio.Client()
-
-@sio.event
-def connect():
-    print('✅ Connected to server')
-
-@sio.event
-def disconnect():
-    print('❌ Disconnected from server')
 
 def execute_command(command):
     action = command.get('action')
@@ -32,32 +20,34 @@ def execute_command(command):
 
 def get_commands_from_server():
     try:
-        response = requests.get('http://localhost:5000/get_commands')
+        response = requests.get('https://pc-remote-control.onrender.com/get_commands')
+
         if response.status_code == 200:
-            commands = response.json()
-            if commands:
+            commands = response.json()  # Це буде список рядків
+
+            if commands:  # Перевірка, чи список не порожній
                 for command in commands:
-                    execute_command(command)
+                    print(f"Received Command: {command}")
+                    # Тут ви можете викликати відповідну функцію
+                    # напр., if command == 'open': open_app()
             else:
-                print("No new commands.")
+                print("No new commands")
         else:
-            print("Failed to fetch commands from server.")
+            print(f"Failed to fetch commands. Status code: {response.status_code}")
     except Exception as e:
-        print(f"Error fetching commands: {e}")
+        print(f"Error fetching commands: {str(e)}")
 
 def start_polling():
     while True:
-        get_commands_from_server()
-        time.sleep(5)  # Перевіряємо нові команди кожні 5 секунд
+        get_commands_from_server()  # Перевіряємо нові команди кожні 5 секунд
+        time.sleep(5)
 
 def main():
     try:
-        # Підключаємося до серверу через WebSocket (можна для повідомлень)
-        sio.connect('https://your-server-url.com')
+        print("Starting command polling...")
         start_polling()  # Стартуємо polling для перевірки команд
-        sio.wait()  # Чекаємо подій WebSocket
     except Exception as e:
-        print("Exception during connect:", e)
+        print("Exception during polling:", e)
 
 if __name__ == '__main__':
     main()

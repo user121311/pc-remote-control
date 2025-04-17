@@ -15,15 +15,17 @@ def index():
     return "PC Control Server is running."
 
 # API для отримання нових команд
+
 @app.route('/get_commands', methods=['GET'])
 def get_commands():
     if commands_queue:
-        # Повертаємо список команд
+        # Копіюємо команди та очищаємо чергу
         commands = commands_queue.copy()
-        commands_queue.clear()  # Очищаємо список команд після передачі
-        return jsonify(commands)
+        commands_queue.clear()
+        return jsonify({'commands': commands})  # Повертаємо словник
     else:
-        return jsonify([]), 200  # Якщо немає команд, повертаємо порожній список
+        return jsonify({'commands': []}), 200  # Порожній список у словнику
+
 
 # API для додавання нових команд
 @app.route('/send_command', methods=['POST'])
