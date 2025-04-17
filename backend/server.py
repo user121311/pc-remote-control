@@ -3,9 +3,10 @@ from flask_socketio import SocketIO, emit
 import threading
 import os
 import time
-
+from flask_cors import CORS
 app = Flask(__name__)
 socketio = SocketIO(app)
+CORS(app)   # або CO
 
 # Список команд, які чекають виконання
 commands_queue = []
