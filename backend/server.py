@@ -1,51 +1,57 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import threading
+import os
+import time
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://pc-remote-control.web.app"]}})
-socketio = SocketIO(app, cors_allowed_origins="*")  # дозволяє WebSocket
+socketio = SocketIO(app)
 
-connected_clients = []
+# Список команд, які чекають виконання
+commands_queue = []
 
 @app.route('/')
 def index():
     return "PC Control Server is running."
 
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    if connected_clients:
-        socketio.emit('command', {'action': 'shutdown'})
-        return jsonify({"status": "Sent shutdown command to client"})
+# API для отримання нових команд
+@app.route('/get_commands', methods=['GET'])
+def get_commands():
+    if commands_queue:
+        # Повертаємо список команд
+        commands = commands_queue.copy()
+        commands_queue.clear()  # Очищаємо список команд після передачі
+        return jsonify(commands)
     else:
-        return jsonify({"error": "No clients connected"}), 400
+        return jsonify([]), 200  # Якщо немає команд, повертаємо порожній список
 
-@app.route('/open', methods=['POST'])
-def open_app():
-    app_name = request.json.get("app_name")
-    if connected_clients:
-        socketio.emit('command', {'action': 'open', 'app_name': app_name})
-        return jsonify({"status": f"Sent open command for {app_name}"})
-    else:
-        return jsonify({"error": "No clients connected"}), 400
-    
+# API для додавання нових команд
+@app.route('/send_command', methods=['POST'])
+def send_command():
+    data = request.json
+    if data:
+        command = data.get('command')
+        if command:
+            commands_queue.append(command)
+            return jsonify({"status": "Command added successfully!"}), 200
+        return jsonify({"error": "No command provided"}), 400
+    return jsonify({"error": "Invalid data"}), 400
+
+# Обробка підключень від клієнтів
 @socketio.on('client_message')
 def handle_client_message(data):
     print(f"Received message from client: {data.get('message')}")
 
+# Обробка підключень
 @socketio.on('connect')
 def handle_connect():
     sid = request.sid
-    if sid not in connected_clients:
-        connected_clients.append(sid)
-        print("✅ Client connected:", sid)
+    print(f"Client connected: {sid}")
 
-
+# Обробка відключень
 @socketio.on('disconnect')
 def handle_disconnect():
-    connected_clients.remove(request.sid)
-    print("Client disconnected:", request.sid)
+    print("Client disconnected.")
 
 def run():
     socketio.run(app, host='0.0.0.0', port=5000)
