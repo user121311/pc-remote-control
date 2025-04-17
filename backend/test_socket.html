@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Socket.IO Test</title>
+</head>
+<body>
+  <h1>Socket.IO Connection Test</h1>
+  <p id="status">Connecting...</p>
+
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script>
+    const socket = io("https://pc-remote-control.onrender.com", {
+      transports: ["websocket"], // змушує використати тільки websocket
+    });
+
+    socket.on("connect", () => {
+      document.getElementById("status").textContent = "✅ Connected to server with ID: " + socket.id;
+      console.log("✅ Connected:", socket.id);
+    });
+
+    socket.on("disconnect", () => {
+      document.getElementById("status").textContent = "❌ Disconnected from server";
+      console.log("❌ Disconnected");
+    });
+
+    socket.on("connect_error", (err) => {
+      document.getElementById("status").textContent = "⚠️ Connection error: " + err.message;
+      console.error("Connection error:", err);
+    });
+  </script>
+</body>
+</html>

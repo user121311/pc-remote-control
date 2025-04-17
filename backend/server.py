@@ -29,11 +29,18 @@ def open_app():
         return jsonify({"status": f"Sent open command for {app_name}"})
     else:
         return jsonify({"error": "No clients connected"}), 400
+    
+@socketio.on('client_message')
+def handle_client_message(data):
+    print(f"Received message from client: {data.get('message')}")
 
 @socketio.on('connect')
 def handle_connect():
-    connected_clients.append(request.sid)
-    print("Client connected:", request.sid)
+    sid = request.sid
+    if sid not in connected_clients:
+        connected_clients.append(sid)
+        print("✅ Client connected:", sid)
+
 
 @socketio.on('disconnect')
 def handle_disconnect():
