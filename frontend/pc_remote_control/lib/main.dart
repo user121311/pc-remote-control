@@ -1,182 +1,161 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'PC Control',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: HomePage(),
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const HomePage(),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key}); // замінити на IP сервера
-
+  const HomePage({super.key});
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  final String baseUrl = 'https://pc-remote-control.onrender.com';  // URL вашого сервера
-
-  String connectionStatus = 'Connecting...'; // Статус підключення
-// Функція для виклику запиту на додавання нової команди
-Future<void> sendCommand(String command) async {
-  try {
-    final response = await http.post(
-     Uri.parse('$baseUrl/send_command'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'command': command}),
-    );
-
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      print('Command sent successfully');
-    } else {
-      print('Failed to send command');
-    }
-  } catch (e) {
-    print('Error sending command: $e');
-    if (e is http.ClientException) {
-      print('ClientException details: ${e.message}');
-    }
-  }
-}
-
-  // Функція для виклику запиту на перевірку підключення до сервера
-  Future<void> checkConnection() async {
-    try {
-    final response = await http.get(Uri.parse('$baseUrl/'));
-
-      if (response.statusCode == 200) {
-        setState(() {
-          connectionStatus = 'Connected to Server';
-        });
-      } else {
-        setState(() {
-          connectionStatus = 'Failed to connect to Server';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        connectionStatus = 'Error: ${e.toString()}';
-      });
-      throw Exception(e);
-    }
-  }
-
-  // Функція для виклику запиту на отримання нових команд
-  Future<void> getCommands() async {
-    try {
-      final response = await http.get(Uri.https('$baseUrl', '/get_commands'));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> commands = json.decode(response.body);
-        if (commands.isNotEmpty) {
-          for (var command in commands) {
-            print('Received Command: $command');
-            // Ваша логіка для обробки команд
-            // Наприклад, виклик функції для виконання команди
-          }
-        } else {
-          print('No new commands');
-        }
-      } else {
-        print('Failed to fetch commands');
-      }
-    } catch (e) {
-      print('Error fetching commands: $e');
-    }
-  }
-
-  // Функція для виклику запиту на відключення комп'ютера
-  Future<void> shutdown() async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/shutdown'),
-    );
-
-    if (response.statusCode == 200) {
-      print('Shutdown initiated');
-    } else {
-      print('Failed to shutdown');
-    }
-  }
-
-  // Функція для виклику запиту на відкриття програми
-  Future<void> openApp() async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/open'),
-      headers: {'Content-Type': 'application/json'},
-    );
-
-    if (response.statusCode == 200) {
-      print('App opened');
-    } else {
-      print('Failed to open app');
-    }
-  }
+  final String baseUrl = 'https://pc-remote-control.onrender.com';
+  String connectionStatus = 'Connecting...';
+  List<String> activeClients = [];
+  String? selectedClientId;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    checkConnection(); // Перевірка підключення при старті програми
-    // getCommands(); // Викликаємо перевірку на нові команди
+    checkConnection();
+    fetchActiveClients();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      fetchActiveClients();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> checkConnection() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/'));
+      setState(() {
+        connectionStatus = response.statusCode == 200
+            ? 'Connected to Server'
+            : 'Failed to connect to Server';
+      });
+    } catch (e) {
+      setState(() {
+        connectionStatus = 'Error: ${e.toString()}';
+      });
+    }
+  }
+
+  Future<void> fetchActiveClients() async {
+  try {
+    final response = await http.get(Uri.parse('$baseUrl/active_clients'));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final clients = data["active_clients"] as List;
+
+      setState(() {
+        activeClients = clients
+            .map<String>((client) => client["client_id"] as String)
+            .toList();
+      });
+    }
+  } catch (e) {
+    print('Error fetching active clients: $e');
+  }
+}
+
+
+  Future<void> sendCommand(String command) async {
+    if (selectedClientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a client')),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/send_command'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'command': command, 'client_id': selectedClientId}),
+      );
+
+      if (response.statusCode == 200) {
+        print('Command sent successfully');
+      } else {
+        print('Failed to send command');
+      }
+    } catch (e) {
+      print('Error sending command: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('PC Control Server'),
+        title: const Text('PC Control Server'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            // Лейбл для статусу підключення
+          children: [
             Container(
-              padding: EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(8.0),
               color: connectionStatus == 'Connected to Server'
                   ? Colors.green
                   : Colors.red,
               child: Text(
                 connectionStatus,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
             ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => sendCommand('test'),
-              child: Text('Shutdown PC'),
+            const SizedBox(height: 20),
+            DropdownButton<String>(
+              hint: const Text('Select Active Client'),
+              value: selectedClientId,
+             
+              items: activeClients
+                  .map((client) =>
+                      DropdownMenuItem(value: client, child: Text(client)))
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedClientId = value;
+                });
+              },
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => sendCommand('open'), // Вкажіть шлях до програми
-              child: Text('Open App'),
+              onPressed: () => sendCommand('shutdown'),
+              child: const Text('Shutdown PC'),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: () => getCommands(),  // Перевірити нові команди
-              child: Text('Check for New Commands'),
+              onPressed: () => sendCommand('open'),
+              child: const Text('Відкрити калькулятор'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: fetchActiveClients,
+              child: const Text('Refresh Active Clients'),
             ),
           ],
         ),
