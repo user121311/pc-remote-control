@@ -18,12 +18,14 @@ def execute_command(command):
     else:
         print("❓ Unknown command")
 
+
 def get_commands_from_server():
     try:
         response = requests.get('https://pc-remote-control.onrender.com/get_commands')
 
         if response.status_code == 200:
-            commands = response.json()  # Це буде список рядків
+            data = response.json()  # Отримуємо JSON-об'єкт
+            commands = data.get('commands', [])  # Отримуємо список команд з ключа 'commands'
 
             if commands:  # Перевірка, чи список не порожній
                 for command in commands:
@@ -37,14 +39,29 @@ def get_commands_from_server():
     except Exception as e:
         print(f"Error fetching commands: {str(e)}")
 
+def ping_server():
+    try:
+        response = requests.post('https://pc-remote-control.onrender.com/ping', json={
+            'client_id': 'pc-001'  # унікальний id ПК
+        })
+        if response.status_code == 200:
+            print("✅ Ping sent")
+        else:
+            print(f"⚠️ Ping failed: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Ping error: {e}")
+
 def start_polling():
     while True:
-        get_commands_from_server()  # Перевіряємо нові команди кожні 5 секунд
+        ping_server()  # надсилаємо пінг
+        get_commands_from_server()  # перевіряємо нові команди
         time.sleep(5)
+
 
 def main():
     try:
         print("Starting command polling...")
+        ping_server()
         start_polling()  # Стартуємо polling для перевірки команд
     except Exception as e:
         print("Exception during polling:", e)

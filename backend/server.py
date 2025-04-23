@@ -4,12 +4,16 @@ import threading
 import os
 import time
 from flask_cors import CORS
+from datetime import datetime
+
 app = Flask(__name__)
 socketio = SocketIO(app)
 CORS(app)   # або CO
 
 # Список команд, які чекають виконання
 commands_queue = []
+client_status = {}
+
 
 @app.route('/')
 def index():
@@ -26,7 +30,20 @@ def get_commands():
         return jsonify({'commands': commands})  # Повертаємо словник
     else:
         return jsonify({'commands': []}), 200  # Порожній список у словнику
+    
+@app.route('/ping', methods=['POST'])
+def ping():
+    data = request.json
+    client_id = data.get('client_id')
+    
+    if not client_id:
+        return jsonify({'error': 'Missing client_id'}), 400
 
+    # Зберігаємо час останнього пінгу
+    client_status[client_id] = datetime.utcnow()
+    print(f"✅ Ping received from {client_id} at {client_status[client_id]}")
+    
+    return jsonify({'status': 'pong'}), 200
 
 # API для додавання нових команд
 @app.route('/send_command', methods=['POST'])
